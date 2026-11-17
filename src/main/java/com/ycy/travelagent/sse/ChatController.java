@@ -66,7 +66,7 @@ public class ChatController {
     private static final long HEARTBEAT_SECONDS = 15;
     private static final int MAX_MESSAGE_LENGTH = 4000;
 
-    private final HarnessAgent.Builder agentBuilder;
+    private final HarnessAgent agent;
     private final ChatRepository chatRepository;
     private final ObjectMapper objectMapper;
     private final MeterRegistry meterRegistry;
@@ -86,7 +86,7 @@ public class ChatController {
                 return t;
             });
 
-    public ChatController(HarnessAgent.Builder agentBuilder,
+    public ChatController(HarnessAgent agent,
                           ChatRepository chatRepository,
                           ObjectMapper objectMapper,
                           MeterRegistry meterRegistry,
@@ -95,7 +95,7 @@ public class ChatController {
                           @Value("${agentscope.model.openai.model-name}") String modelName,
                           @Value("${app.billing.prompt-price-per-million:1.0}") BigDecimal promptPrice,
                           @Value("${app.billing.completion-price-per-million:2.0}") BigDecimal completionPrice) {
-        this.agentBuilder = agentBuilder;
+        this.agent = agent;
         this.chatRepository = chatRepository;
         this.objectMapper = objectMapper;
         this.meterRegistry = meterRegistry;
@@ -132,11 +132,6 @@ public class ChatController {
         SseEmitter emitter = new SseEmitter(0L);
         RunState state = new RunState(emitter, sessionId, userId);
 
-        HarnessAgent agent;
-        synchronized (agentBuilder) {
-            agent = agentBuilder.build();
-        }
-
         RuntimeContext ctx = RuntimeContext.builder()
                 .userId(userId)
                 .sessionId(sessionId)
@@ -165,11 +160,8 @@ public class ChatController {
             if (d != null && !d.isDisposed()) {
                 d.dispose();
             }
-            try {
-                agent.close();
-            } catch (Exception e) {
-                log.debug("close agent failed: {}", e.getMessage());
-            }
+            // 不关闭 agent：它是应用级单例，close 会销毁 MCP 客户端等共享资源。
+            // 由 Spring 容器在应用退出时统一关闭（见 AgentConfig 的 @Bean destroyMethod）。
         };
 
         emitter.onCompletion(() -> {

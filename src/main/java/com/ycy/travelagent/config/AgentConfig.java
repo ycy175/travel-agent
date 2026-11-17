@@ -34,14 +34,29 @@ public class AgentConfig {
 
     private final TravelTools travelTools;
     private final DataSource dataSource;
+    private final PromptProvider promptProvider;
 
-    public AgentConfig(TravelTools travelTools, DataSource dataSource) {
+    public AgentConfig(TravelTools travelTools, DataSource dataSource, PromptProvider promptProvider) {
         this.travelTools = travelTools;
         this.dataSource = dataSource;
+        this.promptProvider = promptProvider;
     }
 
-    @Bean
-    public HarnessAgent.Builder harnessAgentBuilder() throws Exception {
+    /**
+     * 单例 Agent：应用启动时构建一次，所有会话复用。
+     *
+     * <p>为什么不每次请求 build：AgentScope 的 Builder.build() 会修改 builder 自身字段
+     * （如 stateStoreOverride），并发 build 同一 builder 不安全；而反复 build 还会不断
+     * copy toolkit、重建 workspace 索引、重连 MCP 子进程，代价极高。
+     *
+     * <p>为什么单例安全：ReActAgent 内部用 ConcurrentHashMap 按 (userId, sessionId)
+     * 隔离状态与权限引擎，callSerializationKey 也是 slotKey(userId, sessionId)，
+     * 即不同会话天然并发、同一会话自动串行——框架本身就是按"单实例多会话"设计的。
+     * 因此这里不逐请求 close（close 会关掉 MCP 客户端等共享资源），交给容器在
+     * 应用退出时通过 destroyMethod 统一关闭。
+     */
+    @Bean(destroyMethod = "close")
+    public HarnessAgent harnessAgent() throws Exception {
         Path workspace = WorkspaceInitializer.init();
 
         OpenAIChatModel model = OpenAIChatModel.builder()
@@ -90,16 +105,7 @@ public class AgentConfig {
         return HarnessAgent.builder()
                 .name("travel-orchestrator")
                 .agentId("travel-orchestrator")
-                .sysPrompt("""
-                        你是企业差旅助手，负责差旅规划与执行。
-                        规则：
-                        1. 查询差标调用 query_travel_policy，只需要提供目的城市；员工职级由系统自动提供，不要询问也不要假设。
-                        2. 需要提交审批时，必须调用 submit_travel_approval，并原样把审批单号告诉用户。
-                        3. 审批单处于 PENDING 或 REJECTED 时，禁止调用 book_travel，也不要声称已经预订。
-                        4. 用户明确告知审批已通过后，才可以调用 book_travel 下单；下单时如实填写金额、城市、舱位/晚数。
-                        5. 下单失败时，把失败原因原样告诉用户，不要编造成功。
-                        6. 回答使用中文，简洁、可执行。
-                        """)
+                .sysPrompt(promptProvider.systemPrompt())
                 .model(model)
                 .toolkit(toolkit)
                 .permissionContext(permissionContext)
@@ -110,6 +116,7 @@ public class AgentConfig {
                         .triggerMessages(30)
                         .keepMessages(10)
                         .flushBeforeCompact(true)
-                        .build());
+                        .build())
+                .build();
     }
 }
