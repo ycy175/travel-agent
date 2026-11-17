@@ -36,6 +36,10 @@ app:
     completion-price-per-million: 2.0
 
 agentscope:
+  # 系统提示词版本，对应 classpath:prompts/travel-orchestrator-{version}.txt
+  # 调 Prompt 只需改版本号或替换文件，无需改代码；每次变更应跑护栏回归评测。
+  prompt:
+    version: ${AGENT_PROMPT_VERSION:v1}
   model:
     openai:
       api-key: ${DEEPSEEK_API_KEY:}

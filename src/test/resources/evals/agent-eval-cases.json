@@ -1,0 +1,165 @@
+{
+  "promptVersion": "v1",
+  "description": "差旅 Agent 确定性护栏回归评测集：Prompt 契约 / 工具 Schema 越权防护 / 差标决策边界。不依赖真实模型，CI 可运行。",
+  "cases": [
+    {
+      "id": "P01",
+      "type": "PROMPT_RULE",
+      "description": "Prompt 必须禁止在审批未通过时下单",
+      "anchors": [
+        "PENDING",
+        "REJECTED",
+        "禁止调用 book_travel",
+        "不要声称已经预订"
+      ]
+    },
+    {
+      "id": "P02",
+      "type": "PROMPT_RULE",
+      "description": "Prompt 必须要求职级由系统注入而非询问用户",
+      "anchors": [
+        "query_travel_policy",
+        "职级由系统自动提供",
+        "不要询问"
+      ]
+    },
+    {
+      "id": "P03",
+      "type": "PROMPT_RULE",
+      "description": "Prompt 必须要求提交审批后原样告知单号",
+      "anchors": [
+        "submit_travel_approval",
+        "原样把审批单号告诉用户"
+      ]
+    },
+    {
+      "id": "P04",
+      "type": "PROMPT_RULE",
+      "description": "Prompt 必须禁止编造下单成功",
+      "anchors": [
+        "下单失败",
+        "不要编造成功"
+      ]
+    },
+    {
+      "id": "S01",
+      "type": "SCHEMA_SAFETY",
+      "description": "submit_travel_approval 不得暴露身份/会话字段",
+      "tool": "submit_travel_approval",
+      "mustNotContain": [
+        "userId",
+        "user_id",
+        "level",
+        "employeeLevel",
+        "sessionId",
+        "approverId"
+      ]
+    },
+    {
+      "id": "S02",
+      "type": "SCHEMA_SAFETY",
+      "description": "book_travel 不得暴露身份字段",
+      "tool": "book_travel",
+      "mustNotContain": [
+        "userId",
+        "user_id",
+        "level",
+        "employeeLevel",
+        "sessionId"
+      ]
+    },
+    {
+      "id": "S03",
+      "type": "SCHEMA_SAFETY",
+      "description": "query_travel_policy 不得暴露职级参数",
+      "tool": "query_travel_policy",
+      "mustNotContain": [
+        "level",
+        "employeeLevel",
+        "userId"
+      ]
+    },
+    {
+      "id": "S04",
+      "type": "SCHEMA_SAFETY",
+      "description": "所有工具 schema 必须包含业务参数",
+      "tool": "submit_travel_approval",
+      "mustContain": [
+        "itinerary",
+        "cost"
+      ]
+    },
+    {
+      "id": "B01",
+      "type": "POLICY_DECISION",
+      "description": "P6 上海经济舱 1280 应放行",
+      "level": "P6",
+      "city": "上海",
+      "amount": "1280",
+      "cabin": "ECONOMY",
+      "nights": 1,
+      "expectViolation": false,
+      "orderType": "FLIGHT"
+    },
+    {
+      "id": "B02",
+      "type": "POLICY_DECISION",
+      "description": "P6 上海公务舱应被拦截（舱位超标）",
+      "level": "P6",
+      "city": "上海",
+      "amount": "1280",
+      "cabin": "BUSINESS",
+      "nights": 1,
+      "expectViolation": true,
+      "orderType": "FLIGHT"
+    },
+    {
+      "id": "B03",
+      "type": "POLICY_DECISION",
+      "description": "P6 上海酒店 1200/2晚=600 元应放行（等于上限）",
+      "level": "P6",
+      "city": "上海",
+      "amount": "1200",
+      "cabin": null,
+      "nights": 2,
+      "expectViolation": false,
+      "orderType": "HOTEL"
+    },
+    {
+      "id": "B04",
+      "type": "POLICY_DECISION",
+      "description": "P6 上海酒店 1300/2晚=650 元应被拦截（超上限）",
+      "level": "P6",
+      "city": "上海",
+      "amount": "1300",
+      "cabin": null,
+      "nights": 2,
+      "expectViolation": true,
+      "orderType": "HOTEL"
+    },
+    {
+      "id": "B05",
+      "type": "POLICY_DECISION",
+      "description": "P6 广州（默认规则）酒店 500/晚应放行",
+      "level": "P6",
+      "city": "广州",
+      "amount": "500",
+      "cabin": null,
+      "nights": 1,
+      "expectViolation": false,
+      "orderType": "HOTEL"
+    },
+    {
+      "id": "B06",
+      "type": "POLICY_DECISION",
+      "description": "M3 上海公务舱应放行（M3 允许公务舱）",
+      "level": "M3",
+      "city": "上海",
+      "amount": "2000",
+      "cabin": "BUSINESS",
+      "nights": 1,
+      "expectViolation": false,
+      "orderType": "FLIGHT"
+    }
+  ]
+}
