@@ -1,0 +1,43 @@
+server:
+  port: 8080
+
+spring:
+  application:
+    name: travel-agent
+  datasource:
+    # 数据保存在项目根目录下的 travel_db 文件中
+    url: jdbc:h2:file:./travel_db;AUTO_SERVER=TRUE
+    driver-class-name: org.h2.Driver
+    username: sa
+    password:
+  sql:
+    init:
+      mode: always # 每次启动都执行 schema.sql
+
+app:
+  security:
+    # 生产环境务必通过环境变量覆盖
+    token-secret: ${TRAVEL_TOKEN_SECRET:dev-only-secret-change-me-32bytes}
+    token-ttl-hours: 12
+  approval:
+    # 本人确认的金额上限（元），超过后必须由同部门审批人/管理员审批
+    self-approve-limit: 5000
+  quota:
+    # 每个用户每月模型 token 预算
+    monthly-tokens: 2000000
+  rate-limit:
+    # 每个用户每分钟最多发起的对话请求数
+    chat-per-minute: 10
+    # 同一 IP 每分钟登录尝试次数
+    login-per-minute: 5
+  billing:
+    # DeepSeek 计价（元 / 百万 token），配置化避免写死在代码里
+    prompt-price-per-million: 1.0
+    completion-price-per-million: 2.0
+
+agentscope:
+  model:
+    openai:
+      api-key: ${DEEPSEEK_API_KEY:}
+      base-url: https://api.deepseek.com
+      model-name: deepseek-flash
